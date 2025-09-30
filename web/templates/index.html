@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatbot Acadêmico 🤖</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Chatbot Acadêmico 🤖</h2>
+        </div>
+        <div class="chat-box" id="chat-box"></div>
+        <div class="chat-input">
+            <input type="text" id="pergunta" placeholder="Digite sua dúvida...">
+            <button onclick="enviar()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        async function enviar() {
+            const pergunta = document.getElementById("pergunta").value;
+            if(!pergunta) return;
+
+            const resposta = await fetch("/perguntar", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({pergunta})
+            }).then(res => res.json());
+
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `
+                <div class="message user">
+                    <div class="avatar">🧑</div>
+                    <div class="text">${pergunta}</div>
+                </div>
+                <div class="message bot">
+                    <div class="avatar">🤖</div>
+                    <div class="text">${resposta.resposta}</div>
+                </div>
+            `;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            document.getElementById("pergunta").value = "";
+        }
+
+        document.getElementById("pergunta").addEventListener("keypress", function(e){
+            if(e.key === "Enter") enviar();
+        });
+    </script>
+</body>
+</html>
