@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 from dotenv import load_dotenv
-
+import fitz
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -42,15 +42,15 @@ def send():
     user_message = data.get("message", "").lower().strip()
 
    
-    forbidden_keywords = ["neymar", "futebol", "celebridade", "notícia", "filme"]
+    forbidden_keywords = ["futebol", "celebridade", "notícia", "filme"]
 
     # Lista de exceções 
-    greetings = ["oi","oi,chat" "olá", "ola,chat" "bom dia", "bom dia chat", "boa tarde","boa tarde chat" "boa noite","boa noite chat"]
-    thanks = ["obrigado", "obg","obrigada", "valeu", "vlw","agradecido","vlw chat","obrigado chat","obrigada chat"]
+    #greetings = ["oi","oi,chat","olá","ola,chat","bom dia","bom dia chat","boa tarde","boa tarde chat","boa noite","boa noite chat"]
+    thanks = ["obrigado", "obg","obrigada", "valeu","vlw","agradecido","vlw chat","obrigado chat","obrigada chat"]
 
     # saudação
-    if any(word in user_message for word in greetings):
-        return jsonify({"response": "Olá! 👋 Seja bem-vindo ao ChatBot Unip. Como posso ajudar em seus estudos hoje?"})
+    #if any(word in user_message for word in greetings):
+        #return jsonify({"response": "Olá! 👋 Seja bem-vindo ao ChatBot Unip. Como posso ajudar em seus estudos hoje?"})
 
     #  agradecimento
     if any(word in user_message for word in thanks):
@@ -67,6 +67,35 @@ def send():
 
   
     response = chat.send_message(user_message)
+    formatted = getattr(response, "text", str(response)).replace("\n", "<br>")
+
+    return jsonify({"response": formatted})
+
+# Função para extrair texto do PDF
+def extract_text_from_pdf(file_path):
+    text = ""
+    with fitz.open(file_path) as pdf:
+        for page in pdf:
+            text += page.get_text()
+    return text
+
+PDF_FOLDER = "./assets/pdf/"
+
+@app.route("/resumir_pdf", methods=["POST"])
+def resumir_pdf():
+    data = request.get_json()
+    pdf_name = data.get("pdf_name")
+
+    file_path = os.path.join(PDF_FOLDER, pdf_name)
+    if not os.path.exists(file_path):
+        return jsonify({"response": "⚠️ PDF não encontrado no servidor."})
+
+    pdf_text = extract_text_from_pdf(file_path)
+
+    # Criar prompt de resumo
+    prompt = f"Resuma de forma clara e objetiva o seguinte conteúdo:\n\n{pdf_text}"
+
+    response = chat.send_message(prompt)
     formatted = getattr(response, "text", str(response)).replace("\n", "<br>")
 
     return jsonify({"response": formatted})

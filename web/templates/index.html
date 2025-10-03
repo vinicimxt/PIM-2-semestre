@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <title>ChatBot Unip 🤖</title>
@@ -7,12 +8,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
 </head>
+
 <body>
     <div class="chat-container">
         <div class="chat-header">
             <h2>ChatBot Unip 🤖</h2>
         </div>
         <div class="chat-box" id="chat-box"></div>
+        <div class="pdf-tools">
+            <h3>📂 Resumir PDF</h3>
+            <select id="pdfSelect">
+                <option
+                    value="fundamentos_de_infraestrutura_computacional/infraestrutura_computacional_modulo_1.pdf">
+                    Infraestrutura Computacional</option>
+                <!-- você pode adicionar mais PDFs aqui -->
+            </select>
+            <button id="resumirBtn">Resumir PDF</button>
+        </div>
+
+
         <div class="chat-input">
             <input type="text" id="userInput" placeholder="Digite sua mensagem...">
             <button>Enviar</button>
@@ -20,85 +34,114 @@
     </div>
 
     <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const input = document.getElementById("userInput");
-    const sendBtn = document.querySelector(".chat-input button");
-    const chatBox = document.getElementById("chat-box");
+        document.addEventListener("DOMContentLoaded", () => {
+            const input = document.getElementById("userInput");
+            const sendBtn = document.querySelector(".chat-input button");
+            const chatBox = document.getElementById("chat-box");
 
-    sendBtn.addEventListener("click", enviar);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") enviar(); });
+            sendBtn.addEventListener("click", enviar);
+            input.addEventListener("keydown", (e) => { if (e.key === "Enter") enviar(); });
 
-    async function enviar() {
-        const mensagem = input.value.trim();
-        if (!mensagem) return;
+            const resumirBtn = document.getElementById("resumirBtn");
 
-        
-        adicionarMensagem("user", mensagem);
-      const digitandoElem = adicionarMensagem("bot", "", true);
-       
-        input.value = "";
-        input.disabled = true;
-        sendBtn.disabled = true;
+            resumirBtn.addEventListener("click", async () => {
+                const pdfName = document.getElementById("pdfSelect").value;
 
-        try {
-            const resp = await fetch("/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ message: mensagem })
+                
+                adicionarMensagem("user", `Resumir o PDF: ${pdfName}`);
+                const digitandoElem = adicionarMensagem("bot", "", true);
+
+                try {
+                    const resp = await fetch("/resumir_pdf", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ pdf_name: pdfName })
+                    });
+
+                    const data = await resp.json();
+                    digitandoElem.querySelector(".bubble").classList.remove("typing");
+                    digitandoElem.querySelector(".bubble").innerHTML = data.response ?? "Sem resposta.";
+                } catch (err) {
+                    digitandoElem.querySelector(".bubble").classList.remove("typing");
+                    digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro ao resumir PDF.";
+                }
             });
 
-            if (!resp.ok) {
-                const text = await resp.text();
-                console.error("Erro do servidor:", resp.status, text);
-                digitandoElem.querySelector(".bubble").classList.remove("typing");
-                digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro do servidor.";
-            } else {
-                const data = await resp.json();
-                 digitandoElem.querySelector(".bubble").classList.remove("typing");
-                digitandoElem.querySelector(".bubble").innerHTML = data.response ?? "Sem resposta.";
+
+            async function enviar() {
+                const mensagem = input.value.trim();
+                if (!mensagem) return;
+
+
+                adicionarMensagem("user", mensagem);
+                const digitandoElem = adicionarMensagem("bot", "", true);
+
+                input.value = "";
+                input.disabled = true;
+                sendBtn.disabled = true;
+
+                try {
+                    const resp = await fetch("/send", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                        body: JSON.stringify({ message: mensagem })
+                    });
+
+                    if (!resp.ok) {
+                        const text = await resp.text();
+                        console.error("Erro do servidor:", resp.status, text);
+                        digitandoElem.querySelector(".bubble").classList.remove("typing");
+                        digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro do servidor.";
+                    } else {
+                        const data = await resp.json();
+                        digitandoElem.querySelector(".bubble").classList.remove("typing");
+                        digitandoElem.querySelector(".bubble").innerHTML = data.response ?? "Sem resposta.";
+                    }
+                } catch (err) {
+                    console.error("Erro no fetch:", err);
+                    digitandoElem.querySelector(".bubble").classList.remove("typing");
+                    digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro: não foi possível conectar ao servidor.";
+                } finally {
+                    input.disabled = false;
+                    sendBtn.disabled = false;
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
             }
-        } catch (err) {
-            console.error("Erro no fetch:", err);
-             digitandoElem.querySelector(".bubble").classList.remove("typing");
-            digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro: não foi possível conectar ao servidor.";
-        } finally {
-            input.disabled = false;
-            sendBtn.disabled = false;
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-    }
 
-    function adicionarMensagem(tipo, texto, isTyping = false) {
-    const msg = document.createElement("div");
-    msg.classList.add("message", tipo);
+            function adicionarMensagem(tipo, texto, isTyping = false) {
+                const msg = document.createElement("div");
+                msg.classList.add("message", tipo);
 
-    const avatar = document.createElement("div");
-    avatar.classList.add("avatar");
-    avatar.innerText = tipo === "user" ? "🧑" : "🤖";
+                const avatar = document.createElement("div");
+                avatar.classList.add("avatar");
+                avatar.innerText = tipo === "user" ? "🧑" : "🤖";
 
-    const bubble = document.createElement("pre");
-    bubble.classList.add("text", "bubble");
+                const bubble = document.createElement("pre");
+                bubble.classList.add("text", "bubble");
 
-    if (isTyping) {
-        
-        bubble.classList.add("typing");
-        bubble.innerHTML = `
+                if (isTyping) {
+
+                    bubble.classList.add("typing");
+                    bubble.innerHTML = `
             <span></span>
             <span></span>
             <span></span>
         `;
-    } else {
-        bubble.innerHTML = texto;
-    }
+                } else {
+                    bubble.innerHTML = texto;
+                }
 
-    msg.appendChild(avatar);
-    msg.appendChild(bubble);
-    chatBox.appendChild(msg);
-    chatBox.scrollTop = chatBox.scrollHeight;
+                msg.appendChild(avatar);
+                msg.appendChild(bubble);
+                chatBox.appendChild(msg);
+                chatBox.scrollTop = chatBox.scrollHeight;
 
-    return msg;
-}
-});
-</script>
+                return msg;
+            }
+        });
+
+
+    </script>
 </body>
+
 </html>
