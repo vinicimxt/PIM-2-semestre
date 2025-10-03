@@ -2,50 +2,103 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Chatbot Acadêmico 🤖</title>
+    <title>ChatBot Unip 🤖</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h2>Chatbot Acadêmico 🤖</h2>
+            <h2>ChatBot Unip 🤖</h2>
         </div>
         <div class="chat-box" id="chat-box"></div>
         <div class="chat-input">
-            <input type="text" id="pergunta" placeholder="Digite sua dúvida...">
-            <button onclick="enviar()">Enviar</button>
+            <input type="text" id="userInput" placeholder="Digite sua mensagem...">
+            <button>Enviar</button>
         </div>
     </div>
 
     <script>
-        async function enviar() {
-            const pergunta = document.getElementById("pergunta").value;
-            if(!pergunta) return;
+document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("userInput");
+    const sendBtn = document.querySelector(".chat-input button");
+    const chatBox = document.getElementById("chat-box");
 
-            const resposta = await fetch("/perguntar", {
+    sendBtn.addEventListener("click", enviar);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") enviar(); });
+
+    async function enviar() {
+        const mensagem = input.value.trim();
+        if (!mensagem) return;
+
+        
+        adicionarMensagem("user", mensagem);
+      const digitandoElem = adicionarMensagem("bot", "", true);
+       
+        input.value = "";
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        try {
+            const resp = await fetch("/send", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({pergunta})
-            }).then(res => res.json());
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({ message: mensagem })
+            });
 
-            const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML += `
-                <div class="message user">
-                    <div class="avatar">🧑</div>
-                    <div class="text">${pergunta}</div>
-                </div>
-                <div class="message bot">
-                    <div class="avatar">🤖</div>
-                    <div class="text">${resposta.resposta}</div>
-                </div>
-            `;
+            if (!resp.ok) {
+                const text = await resp.text();
+                console.error("Erro do servidor:", resp.status, text);
+                digitandoElem.querySelector(".bubble").classList.remove("typing");
+                digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro do servidor.";
+            } else {
+                const data = await resp.json();
+                 digitandoElem.querySelector(".bubble").classList.remove("typing");
+                digitandoElem.querySelector(".bubble").innerHTML = data.response ?? "Sem resposta.";
+            }
+        } catch (err) {
+            console.error("Erro no fetch:", err);
+             digitandoElem.querySelector(".bubble").classList.remove("typing");
+            digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro: não foi possível conectar ao servidor.";
+        } finally {
+            input.disabled = false;
+            sendBtn.disabled = false;
             chatBox.scrollTop = chatBox.scrollHeight;
-            document.getElementById("pergunta").value = "";
         }
+    }
 
-        document.getElementById("pergunta").addEventListener("keypress", function(e){
-            if(e.key === "Enter") enviar();
-        });
-    </script>
+    function adicionarMensagem(tipo, texto, isTyping = false) {
+    const msg = document.createElement("div");
+    msg.classList.add("message", tipo);
+
+    const avatar = document.createElement("div");
+    avatar.classList.add("avatar");
+    avatar.innerText = tipo === "user" ? "🧑" : "🤖";
+
+    const bubble = document.createElement("pre");
+    bubble.classList.add("text", "bubble");
+
+    if (isTyping) {
+        
+        bubble.classList.add("typing");
+        bubble.innerHTML = `
+            <span></span>
+            <span></span>
+            <span></span>
+        `;
+    } else {
+        bubble.innerHTML = texto;
+    }
+
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+    chatBox.appendChild(msg);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    return msg;
+}
+});
+</script>
 </body>
 </html>
