@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify,send_from_directory
 import google.generativeai as genai
 from dotenv import load_dotenv
 import fitz
@@ -100,7 +100,12 @@ def resumir_pdf():
 
     return jsonify({"response": formatted})
 
+@app.route("/pdf/<path:filename>")
+def serve_pdf(filename):
+    return send_from_directory(PDF_FOLDER, filename)
+
 # Flask
 if __name__ == "__main__":
     print("Servidor rodando em http://127.0.0.1:5000")
     app.run(debug=True)
+    

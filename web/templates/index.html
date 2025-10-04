@@ -10,29 +10,46 @@
 </head>
 
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h2>ChatBot Unip 🤖</h2>
+    <div class="app-container">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2>ChatBot Unip 🤖</h2>
+            </div>
+            <div class="chat-box" id="chat-box"></div>
+
+
+
+            <div class="chat-input">
+                <input type="text" id="userInput" placeholder="Digite sua mensagem...">
+                <button>Enviar</button>
+            </div>
         </div>
-        <div class="chat-box" id="chat-box"></div>
         <div class="pdf-tools">
             <h3>📂 Resumir PDF</h3>
-            <select id="pdfSelect">
-                <option
-                    value="fundamentos_de_infraestrutura_computacional/infraestrutura_computacional_modulo_1.pdf">
-                    Infraestrutura Computacional</option>
-                <!-- você pode adicionar mais PDFs aqui -->
+
+            <!-- Select da Matéria -->
+            <label>Matéria:</label>
+            <select id="materiaSelect">
+                <option value="">-- Escolha a Matéria --</option>
+                <option value="fundamentos_de_infraestrutura_computacional">Infraestrutura Computacional</option>
+                <option value="fundamentos_de_math">Matemática</option>
+                <option value="fundamentos_de_python">Python</option>
+                <option value="fundamentos_de_tic">Tecnologia da Informação e Comunicação</option>
             </select>
-            <button id="resumirBtn">Resumir PDF</button>
-        </div>
 
+            <br><br>
 
-        <div class="chat-input">
-            <input type="text" id="userInput" placeholder="Digite sua mensagem...">
-            <button>Enviar</button>
+            <!-- Select do Módulo  -->
+            <label>Módulo:</label>
+            <select id="moduloSelect" disabled>
+                <option value="">-- Primeiro escolha uma matéria --</option>
+            </select>
+
+            <br><br>
+            <button id="resumirBtn" disabled>Resumir PDF</button>
+            <button id="abrirBtn" disabled>🔎 Ver PDF Completo</button>
         </div>
     </div>
-
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const input = document.getElementById("userInput");
@@ -42,12 +59,70 @@
             sendBtn.addEventListener("click", enviar);
             input.addEventListener("keydown", (e) => { if (e.key === "Enter") enviar(); });
 
+            adicionarMensagem("bot", "Olá! 👋 Sou o assistente acadêmico da UNIP. Estou aqui para ajudar com suas dúvidas e pesquisas. 📚<br><br>➡️ À sua direita, você encontra materiais em PDF que podem ser resumidos para facilitar seu estudo.");
+            // ----------------------------
+            // Parte nova: selects dinâmicos
+            // ----------------------------
+            const materiaSelect = document.getElementById("materiaSelect");
+            const moduloSelect = document.getElementById("moduloSelect");
             const resumirBtn = document.getElementById("resumirBtn");
+            const abrirBtn = document.getElementById("abrirBtn");
+
+            const modulos = {
+                "fundamentos_de_infraestrutura_computacional": [
+                    { nome: "Infraestrutura Computacional - 1", arquivo: "infraestrutura_computacional_modulo_1.pdf" },
+                    { nome: "Infraestrutura Computacional - 2", arquivo: "infraestrutura_computacional_modulo_2.pdf" },
+                    { nome: "Infraestrutura Computacional - 3", arquivo: "infraestrutura_computacional_modulo_3.pdf" },
+                    { nome: "Infraestrutura Computacional - 4", arquivo: "infraestrutura_computacional_modulo_4.pdf" },
+                ],
+                "fundamentos_de_math": [
+                    { nome: "Matemática e Estatística - 1", arquivo: "matematica_estatistica_modulo_1.pdf" },
+                    { nome: "Matemática e Estatística - 2", arquivo: "matematica_estatistica_modulo_2.pdf" },
+                    { nome: "Matemática e Estatística - 3", arquivo: "matematica_estatistica_modulo_3.pdf" }
+                ],
+                "fundamentos_de_python": [
+                    { nome: "Python - 1", arquivo: "fundamentos_de_python_modulo_1.pdf" },
+                    { nome: "Python - 2", arquivo: "fundamentos_de_python_modulo_2.pdf" },
+                    { nome: "Python - 3", arquivo: "fundamentos_de_python_modulo_3.pdf" },
+                    { nome: "Python - 4", arquivo: "fundamentos_de_python_modulo_4.pdf" },
+                    { nome: "Python - 5", arquivo: "fundamentos_de_python_modulo_5.pdf" },
+                    { nome: "Python - 6", arquivo: "fundamentos_de_python_modulo_6.pdf" }
+                ],
+                "fundamentos_de_tic": [
+                    { nome: "Tecnologia da informação - 1", arquivo: "tecnologia_da_informacao_modulo_1.pdf" },
+                    { nome: "Tecnologia da informação - 2", arquivo: "tecnologia_da_informacao_modulo_2.pdf" },
+                    { nome: "Tecnologia da informação - 3", arquivo: "tecnologia_da_informacao_modulo_3.pdf" },
+                    { nome: "Tecnologia da informação - 4", arquivo: "tecnologia_da_informacao_modulo_4.pdf" }
+                ]
+            };
+
+            materiaSelect.addEventListener("change", () => {
+                const materia = materiaSelect.value;
+                moduloSelect.innerHTML = "";
+
+                if (materia && modulos[materia]) {
+                    moduloSelect.disabled = false;
+                    resumirBtn.disabled = false;
+                    abrirBtn.disabled = false;
+
+                    modulos[materia].forEach(m => {
+                        const opt = document.createElement("option");
+                        opt.value = materia + "/" + m.arquivo; 
+                        opt.textContent = m.nome;
+                        moduloSelect.appendChild(opt);
+                    });
+                } else {
+                    moduloSelect.disabled = true;
+                    resumirBtn.disabled = true;
+                    const opt = document.createElement("option");
+                    opt.textContent = "-- Primeiro escolha uma matéria --";
+                    moduloSelect.appendChild(opt);
+                }
+            });
 
             resumirBtn.addEventListener("click", async () => {
-                const pdfName = document.getElementById("pdfSelect").value;
+                const pdfName = moduloSelect.value;
 
-                
                 adicionarMensagem("user", `Resumir o PDF: ${pdfName}`);
                 const digitandoElem = adicionarMensagem("bot", "", true);
 
@@ -66,7 +141,6 @@
                     digitandoElem.querySelector(".bubble").innerHTML = "⚠️ Erro ao resumir PDF.";
                 }
             });
-
 
             async function enviar() {
                 const mensagem = input.value.trim();
@@ -137,6 +211,52 @@
                 chatBox.scrollTop = chatBox.scrollHeight;
 
                 return msg;
+            }
+        });
+        const abrirBtn = document.getElementById("abrirBtn");
+
+        materiaSelect.addEventListener("change", () => {
+            const materia = materiaSelect.value;
+            moduloSelect.innerHTML = "";
+
+            if (materia && modulos[materia]) {
+                moduloSelect.disabled = false;
+
+                modulos[materia].forEach(m => {
+                    const opt = document.createElement("option");
+                    opt.value = materia + "/" + m.arquivo;
+                    opt.textContent = m.nome;
+                    moduloSelect.appendChild(opt);
+                });
+
+                // Desabilitado até escolhas
+                resumirBtn.disabled = true;
+                abrirBtn.disabled = true;
+            } else {
+                moduloSelect.disabled = true;
+                resumirBtn.disabled = true;
+                abrirBtn.disabled = true;
+                const opt = document.createElement("option");
+                opt.textContent = "-- Primeiro escolha uma matéria --";
+                moduloSelect.appendChild(opt);
+            }
+        });
+
+        // Habilita ao escolher
+        moduloSelect.addEventListener("change", () => {
+            if (moduloSelect.value) {
+                resumirBtn.disabled = false;
+                abrirBtn.disabled = false;
+            } else {
+                resumirBtn.disabled = true;
+                abrirBtn.disabled = true;
+            }
+        });
+
+        abrirBtn.addEventListener("click", () => {
+            const pdfName = moduloSelect.value;
+            if (pdfName) {
+                window.open(`/pdf/${pdfName}`, "_blank"); 
             }
         });
 
