@@ -14,6 +14,8 @@
         <div class="chat-container">
             <div class="chat-header">
                 <h2>ChatBot Unip 🤖</h2>
+                <button id="logoutBtn"
+                    style="float:right; padding:5px 10px; border-radius:5px; border:none; background:#cc0000; color:white; cursor:pointer;">Sair</button>
             </div>
             <div class="chat-box" id="chat-box"></div>
 
@@ -107,7 +109,7 @@
 
                     modulos[materia].forEach(m => {
                         const opt = document.createElement("option");
-                        opt.value = materia + "/" + m.arquivo; 
+                        opt.value = materia + "/" + m.arquivo;
                         opt.textContent = m.nome;
                         moduloSelect.appendChild(opt);
                     });
@@ -256,7 +258,52 @@
         abrirBtn.addEventListener("click", () => {
             const pdfName = moduloSelect.value;
             if (pdfName) {
-                window.open(`/pdf/${pdfName}`, "_blank"); 
+                window.open(`/pdf/${pdfName}`, "_blank");
+            }
+        });
+        document.getElementById("logoutBtn").addEventListener("click", async () => {
+            try {
+                await fetch("/logout");
+                // Redireciona para a página de login
+                window.location.href = "/login_page";
+            } catch (err) {
+                console.error("Erro ao fazer logout:", err);
+            }
+        });
+        
+        document.addEventListener("DOMContentLoaded", async () => {
+            const chatBox = document.getElementById("chat-box");
+
+            // Função para adicionar mensagem no chat
+            function adicionarMensagem(tipo, texto) {
+                const msg = document.createElement("div");
+                msg.classList.add("message", tipo);
+
+                const avatar = document.createElement("div");
+                avatar.classList.add("avatar");
+                avatar.innerText = tipo === "user" ? "🧑" : "🤖";
+
+                const bubble = document.createElement("pre");
+                bubble.classList.add("text", "bubble");
+                bubble.innerHTML = texto;
+
+                msg.appendChild(avatar);
+                msg.appendChild(bubble);
+                chatBox.appendChild(msg);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            // --- BUSCAR HISTÓRICO ---
+            try {
+                const resp = await fetch("/history");
+                const data = await resp.json();
+
+                data.forEach(msg => {
+                    adicionarMensagem("user", msg[0]);      // msg[0] = message
+                    adicionarMensagem("bot", msg[1]);       // msg[1] = response
+                });
+            } catch (err) {
+                console.error("Erro ao carregar histórico:", err);
             }
         });
 
