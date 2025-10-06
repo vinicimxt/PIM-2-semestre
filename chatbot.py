@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import fitz
+import re
+
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -14,7 +16,8 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 app = Flask(
     __name__,
     template_folder="web/templates",
-    static_folder="web/static"
+    static_folder="web/static",
+    
 )
 app.secret_key = "supersecretkey" 
 DB_FILE = "chat.db"
@@ -60,7 +63,7 @@ def init_db():
 
 init_db()
 
-# Registro
+
 @app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -118,61 +121,62 @@ def logout():
     session.pop("user_id", None)
     return redirect(url_for("login_page"))
 
-# Enviar mensagem (com histórico)
 
-
-
-@app.route("/send", methods=["POST"])
+@app.route("/send_message", methods=["POST"])
 def send_message():
-    if "user_id" not in session:
-        return jsonify({"response": "Você precisa estar logado."})
+    try:
+        data = request.get_json()
+        user_message = data.get("message", "").strip().lower()
+        username = session.get("username", "usuário")
 
-    data = request.get_json()
-    user_message = data.get("message", "").strip().lower()
+        greetings = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"]
+        thanks = ["obrigado", "valeu", "agradeço", "obg"]
+        forbidden_keywords = ["sexo", "piada", "bobagem", "xingar"]
 
-    if not user_message:
-        return jsonify({"response": "Mensagem vazia!"})
+        def contains_whole_word(word_list, text):
+            return any(re.search(rf"\b{re.escape(word)}\b", text) for word in word_list)
 
-    username = session.get("username", "usuário(a)")
+        # Regras rápidas
+        if contains_whole_word(greetings, user_message):
+            response_text = f"Olá {username}, em que posso te ajudar hoje?"
+        elif contains_whole_word(thanks, user_message):
+            response_text = "De nada! Estou sempre à disposição para ajudar em suas pesquisas acadêmicas. 📚"
+        elif contains_whole_word(forbidden_keywords, user_message):
+            response_text = "⚠️ Sua pergunta não está relacionada ao meu propósito acadêmico. Por favor, faça uma pergunta sobre pesquisa, bibliografia ou a universidade."
+        else:
+            # Gemini resposta
+            local_chat = model.start_chat(history=[system_instruction, model_response_ack])
+            response = local_chat.send_message(user_message)
 
-    # Listas de palavras-chave
-    greetings = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"]
-    thanks = ["obrigado", "obg","obrigada","valeu","vlw","agradecido","vlw chat","obrigado chat","obrigada chat"]
-    forbidden_keywords = ["futebol", "celebridade", "notícia", "filme"]
+            try:
+                response_text = response.candidates[0].content.parts[0].text
+            except Exception:
+                response_text = str(response)
 
-    # --- CHECAGENS ANTES DO GEMINI ---
-    response_text = None
+            response_text = response_text.replace("\n", "<br>")
 
-    # 1️⃣ Saudação
-    if any(greet in user_message for greet in greetings):
-        response_text = f"""
-Olá {username},em que posso te ajudar hoje?
-"""
-    # 2️⃣ Agradecimento
-    elif any(word in user_message for word in thanks):
-        response_text = "De nada! Estou sempre à disposição para ajudar em suas pesquisas acadêmicas. 📚"
-    # 3️⃣ Palavras proibidas
-    elif any(keyword in user_message for keyword in forbidden_keywords):
-        response_text = "⚠️ Sua pergunta não está relacionada ao meu propósito acadêmico. Por favor, faça uma pergunta sobre pesquisa, bibliografia ou a universidade."
-    
-    # 4️⃣ Mensagem acadêmica → chama Gemini
-    else:
-        response = chat.send_message(user_message)
-        response_text = getattr(response, "text", str(response)).replace("\n", "<br>")
+        
+        user_id = session.get("user_id")
+        if user_id:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO messages (user_id, message, response) VALUES (?, ?, ?)",
+                (user_id, user_message, response_text)
+            )
+            conn.commit()
+            conn.close()
 
-    # --- SALVAR NO BANCO ---
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO messages (user_id, message, response) VALUES (?, ?, ?)",
-              (session["user_id"], user_message, response_text))
-    conn.commit()
-    conn.close()
+        return jsonify({"response": response_text})
 
-    return jsonify({"response": response_text})
+    except Exception as e:
+        print("Erro no send_message:", e)
+        return jsonify({"response": "⚠️ Ocorreu um erro ao processar sua mensagem."}), 500
 
 
 
-# Recuperar histórico
+
+
 @app.route("/history")
 def history():
     if "user_id" not in session:
@@ -195,10 +199,8 @@ def history():
 def index():
     return render_template("index.html")
 
-@app.route("/send", methods=["POST"])
 
 
-# Função para extrair texto do PDF
 def extract_text_from_pdf(file_path):
     text = ""
     with fitz.open(file_path) as pdf:
@@ -219,7 +221,7 @@ def resumir_pdf():
 
     pdf_text = extract_text_from_pdf(file_path)
 
-    # Criar prompt de resumo
+   
     prompt = f"Resuma de forma clara e objetiva o seguinte conteúdo:\n\n{pdf_text}"
 
     response = chat.send_message(prompt)
