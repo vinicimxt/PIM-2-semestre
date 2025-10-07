@@ -7,7 +7,8 @@ import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import fitz
 import re
-
+from tools.error_checker_runner import run_error_checker
+import string
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -24,7 +25,9 @@ DB_FILE = "chat.db"
 
 system_instruction = {
     "role": "user",
-    "parts": ["Você é um assistente de pesquisa e orientação acadêmica da Unip. Sua principal função é fornecer informações confiáveis e baseadas em evidências para estudantes, professores e pesquisadores. Mantenha um tom formal e profissional. Responda apenas sobre temas acadêmicos, evitando gírias, opiniões pessoais ou conversas informais. Se não puder responder de forma acadêmica, diga educadamente que não pode ajudar."],
+    "parts": ["Você é um assistente de pesquisa e orientação acadêmica da Unip. Sua principal função é fornecer informações confiáveis e baseadas em evidências para estudantes, professores e pesquisadores. Mantenha um tom formal e profissional. Responda apenas sobre temas acadêmicos, evitando gírias, opiniões pessoais ou conversas informais. Se não puder responder de forma acadêmica, diga educadamente que não pode ajudar."
+    "Só responda com saudações ou agradecimentos se a mensagem do usuário realmente for uma saudação ou agradecimento. "
+    "Se não for, responda educadamente que não pode ajudar fora do contexto acadêmico."],
 }
 
 model_response_ack = {
@@ -63,6 +66,19 @@ def init_db():
 
 init_db()
 
+
+
+@app.route("/check_code_page", methods=["GET"])
+def check_code_page():
+    return render_template("check_code.html")
+
+# Rota para processar a verificação (executa o C)
+@app.route("/check_code", methods=["POST"])
+def check_code():
+    data = request.get_json()
+    file_to_check = data.get("file", "pim_code.c")
+    result = run_error_checker(file_to_check)
+    return jsonify({"response": result})
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -122,40 +138,60 @@ def logout():
     return redirect(url_for("login_page"))
 
 
+
 @app.route("/send_message", methods=["POST"])
 def send_message():
     try:
         data = request.get_json()
-        user_message = data.get("message", "").strip().lower()
+        user_message = data.get("message", "").strip()
         username = session.get("username", "usuário")
 
         greetings = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"]
         thanks = ["obrigado", "valeu", "agradeço", "obg"]
         forbidden_keywords = ["sexo", "piada", "bobagem", "xingar"]
+        question_words = ["quem", "o que", "onde", "quando", "como", "qual", "quais"]
 
+        # Função para verificar palavras isoladas
         def contains_whole_word(word_list, text):
-            return any(re.search(rf"\b{re.escape(word)}\b", text) for word in word_list)
+            words = re.findall(r'\b\w+\b', text.lower())
+            return any(word in words for word in word_list)
 
-        # Regras rápidas
-        if contains_whole_word(greetings, user_message):
+        # Função para detectar se a mensagem é uma pergunta
+        def is_question(text):
+            if "?" in text:
+                return True
+            words = re.findall(r'\b\w+\b', text.lower())
+            return any(qw in words for qw in question_words)
+
+        # Prioridade: perguntas ou código não devem cair em greetings
+        if is_question(user_message):
+            # Pergunta, envia para o modelo
+            local_chat = model.start_chat(history=[system_instruction, model_response_ack])
+            response = local_chat.send_message(user_message)
+            try:
+                response_text = response.candidates[0].content.parts[0].text
+            except Exception:
+                response_text = str(response)
+            response_text = response_text.replace("\n", "<br>")
+
+        # Regras rápidas: greetings, thanks, forbidden_keywords
+        elif contains_whole_word(greetings, user_message):
             response_text = f"Olá {username}, em que posso te ajudar hoje?"
         elif contains_whole_word(thanks, user_message):
             response_text = "De nada! Estou sempre à disposição para ajudar em suas pesquisas acadêmicas. 📚"
         elif contains_whole_word(forbidden_keywords, user_message):
             response_text = "⚠️ Sua pergunta não está relacionada ao meu propósito acadêmico. Por favor, faça uma pergunta sobre pesquisa, bibliografia ou a universidade."
         else:
-            # Gemini resposta
+            # Mensagem comum, envia para o modelo
             local_chat = model.start_chat(history=[system_instruction, model_response_ack])
             response = local_chat.send_message(user_message)
-
             try:
                 response_text = response.candidates[0].content.parts[0].text
             except Exception:
                 response_text = str(response)
-
             response_text = response_text.replace("\n", "<br>")
 
-        
+        # Salva mensagem no banco
         user_id = session.get("user_id")
         if user_id:
             conn = sqlite3.connect(DB_FILE)
@@ -172,6 +208,7 @@ def send_message():
     except Exception as e:
         print("Erro no send_message:", e)
         return jsonify({"response": "⚠️ Ocorreu um erro ao processar sua mensagem."}), 500
+
 
 
 

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Verificador de Código C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='check.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Verificador de Código em C</h1>
+    <p>Digite o nome do arquivo C a ser verificado (ex: pim_code.c)</p>
+
+    <div class="input-group">
+      <input type="text" id="fileInput" value="pim_code.c" />
+      <button id="checkBtn">Verificar</button>
+    </div>
+
+    <div id="output" class="output-box"></div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("checkBtn");
+    const output = document.getElementById("output");
+
+    // Função para formatar saída linha a linha
+    function formatOutput(text) {
+      const lines = text.split('\n');
+      return lines.map(line => {
+        if (line.includes('✅')) {
+          return `<div class="line success">${line}</div>`;
+        } else if (line.includes('⚠️')) {
+          return `<div class="line warning">${line}</div>`;
+        } else if (line.includes('❌')) {
+          return `<div class="line error">${line}</div>`;
+        } else {
+          return `<div class="line normal">${line}</div>`;
+        }
+      }).join('');
+    }
+
+    btn.addEventListener("click", async () => {
+      const file = document.getElementById("fileInput").value.trim();
+      output.innerHTML = `<div class="line normal">⏳ Analisando código...</div>`;
+
+      const res = await fetch("/check_code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file })
+      });
+
+      const data = await res.json();
+      output.innerHTML = formatOutput(data.response);
+
+      // Scroll automático para o fim
+      output.scrollTop = output.scrollHeight;
+    });
+  </script>
+</body>
+</html>

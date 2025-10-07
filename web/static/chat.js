@@ -279,4 +279,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
         console.error("Erro ao carregar histórico:", err);
     }
+
+    fetch("/check_code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: "pim_code.py" })
+    })
+        .then(res => res.json())
+        .then(data => console.log(data.response))
+
 });

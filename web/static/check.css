@@ -1,0 +1,114 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  background: #0f0f0f;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  background: #1e1e1e;
+  padding: 2.5rem;
+  border-radius: 12px;
+  box-shadow: 0 0 25px rgba(0, 123, 255, 0.3);
+  width: 100%;
+  max-width: 700px;
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  font-size: 2rem;
+  color: #00bfff;
+}
+
+p {
+  margin-bottom: 1.5rem;
+  color: #ccc;
+}
+
+.input-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+input[type="text"] {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: none;
+  width: 250px;
+  font-size: 1rem;
+  outline: none;
+}
+
+button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background: #0078ff;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+button:hover {
+  background: #0056b3;
+}
+
+.output-box {
+  background: #121212;
+  border: 1px solid #333;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: left;
+  white-space: pre-wrap;
+  min-height: 150px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+/* Linhas individuais */
+.line {
+  padding: 3px 5px;
+  border-left: 4px solid transparent;
+  margin-bottom: 2px;
+  border-radius: 3px;
+}
+
+.line.normal {
+  color: #ccc;
+}
+
+.line.success {
+  border-left-color: #28a745;
+  background: #1a2a1f;
+  color: #28a745;
+}
+
+.line.warning {
+  border-left-color: #ffc107;
+  background: #2a261a;
+  color: #ffc107;
+}
+
+.line.error {
+  border-left-color: #dc3545;
+  background: #2a1a1a;
+  color: #dc3545;
+}
