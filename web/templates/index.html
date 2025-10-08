@@ -90,17 +90,29 @@
 
                 <div class="flex flex-col gap-3">
                     <button id="resumirBtn" disabled
-                        class="w-full rounded-lg bg-primary text-white py-2 hover:bg-primary/90 disabled:bg-gray-400">Resumir
-                        PDF</button>
+                        class="w-full rounded-lg bg-primary text-white py-2 hover:bg-primary/90 disabled:bg-gray-400">
+                        Resumir PDF
+                    </button>
                     <button id="abrirBtn" disabled
-                        class="w-full rounded-lg border border-gray-400 dark:border-gray-600 py-2 hover:bg-gray-200 dark:hover:bg-gray-800">🔎
-                        Ver PDF Completo</button>
+                        class="w-full rounded-lg border border-gray-400 dark:border-gray-600 py-2 hover:bg-gray-200 dark:hover:bg-gray-800">
+                        🔎 Ver PDF Completo
+                    </button>
+                </div>
+
+                <!-- NOVO BOTÃO -->
+                <div class="mt-6 pt-4 border-t border-gray-300 dark:border-gray-700">
+                    <h4 class="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">💻 Ferramentas extras</h4>
+                    <a href="{{ url_for('check_code_page') }}"
+                        class="block w-full text-center rounded-lg bg-green-600 hover:bg-green-700 text-white py-2 transition">
+                        ⚙️ Verificador de Código C
+                    </a>
                 </div>
             </aside>
+
         </main>
     </div>
 
-    
+
     <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
 

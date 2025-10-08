@@ -68,18 +68,6 @@ init_db()
 
 
 
-@app.route("/check_code_page", methods=["GET"])
-def check_code_page():
-    return render_template("check_code.html")
-
-# Rota para processar a verificação (executa o C)
-@app.route("/check_code", methods=["POST"])
-def check_code():
-    data = request.get_json()
-    file_to_check = data.get("file", "pim_code.c")
-    result = run_error_checker(file_to_check)
-    return jsonify({"response": result})
-
 @app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -111,6 +99,11 @@ def login_required(f):
 def login_page():
     return render_template("login.html")
 
+@app.route("/")
+@login_required
+def index():
+    return render_template("index.html")
+
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -140,68 +133,76 @@ def logout():
 
 
 @app.route("/send_message", methods=["POST"])
+@login_required
 def send_message():
     try:
         data = request.get_json()
         user_message = data.get("message", "").strip()
         username = session.get("username", "usuário")
 
-        greetings = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"]
-        thanks = ["obrigado", "valeu", "agradeço", "obg"]
-        forbidden_keywords = ["sexo", "piada", "bobagem", "xingar"]
-        question_words = ["quem", "o que", "onde", "quando", "como", "qual", "quais"]
+        # Detecta se o usuário enviou código C (heurística simples)
+        if re.search(r'#include|int\s+main\s*\(|printf\s*\(', user_message):
+            # Salva o código
+            temp_path = "temp_user_code.c"
+            with open(temp_path, "w", encoding="utf-8") as f:
+                f.write(user_message)
 
-        # Função para verificar palavras isoladas
-        def contains_whole_word(word_list, text):
-            words = re.findall(r'\b\w+\b', text.lower())
-            return any(word in words for word in word_list)
+            # Roda o verificador de erros em C
+            gcc_output = run_error_checker(temp_path)
 
-        # Função para detectar se a mensagem é uma pergunta
-        def is_question(text):
-            if "?" in text:
-                return True
-            words = re.findall(r'\b\w+\b', text.lower())
-            return any(qw in words for qw in question_words)
+            # Monta a análise em Python
+            analysis = []
+            if "expected" in gcc_output:
+                analysis.append("🔹 Parece haver um erro de sintaxe, possivelmente falta um ponto e vírgula ou parêntese.")
+            if "return" not in user_message:
+                analysis.append("🔹 O código não possui uma instrução de retorno em `main()`. Considere adicionar `return 0;`.")
+            if "printf" not in user_message:
+                analysis.append("🔹 Não encontrei nenhum `printf`. Está certo disso? Talvez queira imprimir algo para depurar o programa.")
+            if "{" not in user_message or "}" not in user_message:
+                analysis.append("🔹 As chaves `{}` parecem desbalanceadas. Verifique se todas estão abrindo e fechando corretamente.")
 
-        # Prioridade: perguntas ou código não devem cair em greetings
-        if is_question(user_message):
-            # Pergunta, envia para o modelo
+            python_feedback = "\n".join(analysis) if analysis else "✅ Nenhum problema estrutural detectado."
+
+            # Gera explicação do Gemini com base no resultado
+            prompt = f"""
+            Analise o seguinte código C e os erros detectados.
+
+            Código:
+            {user_message}
+
+            Saída do compilador:
+            {gcc_output}
+
+            Sugestões do analisador Python:
+            {python_feedback}
+
+            Dê um parecer técnico:
+            - Explique de forma clara o que o compilador quis dizer.
+            - Mostre o que corrigir.
+            - Dê boas práticas de C (organização, comentários, clareza).
+            """
+
             local_chat = model.start_chat(history=[system_instruction, model_response_ack])
-            response = local_chat.send_message(user_message)
+            response = local_chat.send_message(prompt)
+
             try:
                 response_text = response.candidates[0].content.parts[0].text
             except Exception:
                 response_text = str(response)
-            response_text = response_text.replace("\n", "<br>")
 
-        # Regras rápidas: greetings, thanks, forbidden_keywords
-        elif contains_whole_word(greetings, user_message):
-            response_text = f"Olá {username}, em que posso te ajudar hoje?"
-        elif contains_whole_word(thanks, user_message):
-            response_text = "De nada! Estou sempre à disposição para ajudar em suas pesquisas acadêmicas. 📚"
-        elif contains_whole_word(forbidden_keywords, user_message):
-            response_text = "⚠️ Sua pergunta não está relacionada ao meu propósito acadêmico. Por favor, faça uma pergunta sobre pesquisa, bibliografia ou a universidade."
+            response_text = response_text.replace("\n", "<br>")
+        
         else:
-            # Mensagem comum, envia para o modelo
+            # Conversa normal
             local_chat = model.start_chat(history=[system_instruction, model_response_ack])
             response = local_chat.send_message(user_message)
+
             try:
                 response_text = response.candidates[0].content.parts[0].text
             except Exception:
                 response_text = str(response)
-            response_text = response_text.replace("\n", "<br>")
 
-        # Salva mensagem no banco
-        user_id = session.get("user_id")
-        if user_id:
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO messages (user_id, message, response) VALUES (?, ?, ?)",
-                (user_id, user_message, response_text)
-            )
-            conn.commit()
-            conn.close()
+            response_text = response_text.replace("\n", "<br>")
 
         return jsonify({"response": response_text})
 
@@ -212,7 +213,20 @@ def send_message():
 
 
 
+@app.route("/check_code_page", methods=["GET"])
+@login_required
+def check_code_page():
+    
+    return render_template("check_code.html")
 
+# Rota para processar a verificação (executa o C)
+@app.route("/check_code", methods=["POST"])
+
+def check_code():
+    data = request.get_json()
+    file_to_check = data.get("file", "pim_code.c")
+    result = run_error_checker(file_to_check)
+    return jsonify({"response": result})
 
 @app.route("/history")
 def history():
@@ -231,10 +245,6 @@ def history():
     conn.close()
     return jsonify(msgs)
 
-@app.route("/")
-@login_required
-def index():
-    return render_template("index.html")
 
 
 
@@ -248,6 +258,7 @@ def extract_text_from_pdf(file_path):
 PDF_FOLDER = "./assets/pdf/"
 
 @app.route("/resumir_pdf", methods=["POST"])
+@login_required
 def resumir_pdf():
     data = request.get_json()
     pdf_name = data.get("pdf_name")
