@@ -1,0 +1,8 @@
+Flask
+python-dotenv
+google-generativeai
+PyMuPDF
+requests
+
+
+pip install -r requirements.txt
