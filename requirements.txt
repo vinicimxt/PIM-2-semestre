@@ -1,0 +1,9 @@
+flask
+google-generativeai
+python-dotenv
+werkzeug
+pymupdf
+
+
+
+#utilize esse comando no terminal -> pip install -r requirements.txt

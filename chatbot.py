@@ -10,17 +10,31 @@ import re
 from tools.error_checker_runner import run_error_checker
 import string
 
+# ==============================
+# 🔐 Carrega variáveis de ambiente
+# ==============================
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise EnvironmentError(
+        "\n⚠️ Nenhuma chave GEMINI_API_KEY encontrada!\n"
+        "Crie um arquivo `.env` na raiz do projeto com o seguinte conteúdo:\n\n"
+        "GEMINI_API_KEY=sua_chave_aqui\n\n"
+        "Ou copie o modelo de `.env.example`.\n"
+        "Você pode gerar uma chave nova em: https://makersuite.google.com/app/apikey\n"
+    )
+
+# Configura o Gemini com a chave encontrada
+genai.configure(api_key=api_key)
 
 app = Flask(
     __name__,
     template_folder="web/templates",
     static_folder="web/static",
-    
 )
-app.secret_key = "supersecretkey" 
+app.secret_key = "supersecretkey"
 DB_FILE = "chat.db"
 
 system_instruction = {
