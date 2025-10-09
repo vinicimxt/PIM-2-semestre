@@ -1,7 +1,6 @@
 import os
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
-import google.generativeai as genai
 from dotenv import load_dotenv
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,19 +11,18 @@ from setup import run_setup
 
 
 load_dotenv()
-
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    # Chave não existe, abre setup visual
-    run_setup()
-    # Após o setup, recarrega a chave
-    from dotenv import load_dotenv
-    load_dotenv()
+    run_setup()        # chama a interface de setup
+    load_dotenv()      # recarrega a variável do .env
     api_key = os.getenv("GEMINI_API_KEY")
 
-import google.generativeai as genai
+if not api_key:
+    print("❌ Nenhuma chave GEMINI_API_KEY encontrada. Saindo...")
+    exit(1)
 
+import google.generativeai as genai
 genai.configure(api_key=api_key)
 print("✅ Chatbot iniciado com sucesso!")
 
