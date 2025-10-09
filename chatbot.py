@@ -8,26 +8,25 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import fitz
 import re
 from tools.error_checker_runner import run_error_checker
-import string
+from setup import run_setup
 
-# ==============================
-# 🔐 Carrega variáveis de ambiente
-# ==============================
+
 load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    raise EnvironmentError(
-        "\n⚠️ Nenhuma chave GEMINI_API_KEY encontrada!\n"
-        "Crie um arquivo `.env` na raiz do projeto com o seguinte conteúdo:\n\n"
-        "GEMINI_API_KEY=sua_chave_aqui\n\n"
-        "Ou copie o modelo de `.env.example`.\n"
-        "Você pode gerar uma chave nova em: https://makersuite.google.com/app/apikey\n"
-    )
+    # Chave não existe, abre setup visual
+    run_setup()
+    # Após o setup, recarrega a chave
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
 
-# Configura o Gemini com a chave encontrada
+import google.generativeai as genai
+
 genai.configure(api_key=api_key)
+print("✅ Chatbot iniciado com sucesso!")
 
 app = Flask(
     __name__,
