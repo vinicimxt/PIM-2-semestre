@@ -202,7 +202,7 @@ def send_message():
                 response_text = str(response)
 
             response_text = response_text.replace("\n", "<br>")
-        
+            
         else:
             # Conversa normal
             local_chat = model.start_chat(history=[system_instruction, model_response_ack])
@@ -214,7 +214,9 @@ def send_message():
                 response_text = str(response)
 
             response_text = response_text.replace("\n", "<br>")
-
+            user_id = session.get("user_id")
+            if user_id:
+                save_message(user_id, user_message, response_text)
         return jsonify({"response": response_text})
 
     except Exception as e:
@@ -238,6 +240,17 @@ def check_code():
     file_to_check = data.get("file", "pim_code.c")
     result = run_error_checker(file_to_check)
     return jsonify({"response": result})
+
+def save_message(user_id, message, response):
+    import sqlite3
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO messages (user_id, message, response) VALUES (?, ?, ?)
+    """, (user_id, message, response))
+    conn.commit()
+    conn.close()
+
 
 @app.route("/history")
 def history():
