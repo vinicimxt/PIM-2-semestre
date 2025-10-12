@@ -235,11 +235,23 @@ def check_code_page():
 # Rota para processar a verificação (executa o C)
 @app.route("/check_code", methods=["POST"])
 
+@app.route("/check_code", methods=["POST"])
 def check_code():
     data = request.get_json()
-    file_to_check = data.get("file", "pim_code.c")
-    result = run_error_checker(file_to_check)
+    file_name = data.get("file", "pim_code.c").strip()
+
+    
+    code_dir = os.path.join(os.getcwd(), "teste_C")
+    file_path = os.path.join(code_dir, file_name)
+
+    if not os.path.exists(file_path):
+        return jsonify({
+            "response": f"❌ Arquivo '{file_name}' não encontrado na pasta 'c_codes/'."
+        })
+
+    result = run_error_checker(file_path)
     return jsonify({"response": result})
+
 
 def save_message(user_id, message, response):
     import sqlite3

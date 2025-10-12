@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     fetch("/check_code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file: "pim_code.py" })
+        body: JSON.stringify({ file: "pim_code.c" })
     })
         .then(res => res.json())
         .then(data => console.log(data.response))
