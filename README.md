@@ -40,7 +40,7 @@ O projeto também conta com um **instalador visual**, que facilita a configuraç
 ## 🚀 Como Executar o Projeto
 
 ### 🪄 Instalação Automática (Recomendada)
-1. Execute o instalador **`ChatBot UNIP.exe`**.  
+1. Execute o instalador **`python chatbot.py`**.  
 2. Na janela exibida, cole sua **chave da API Gemini**.  
    - Caso ainda não possua, clique em **“Obter chave do Gemini”** e siga as instruções.  
 3. Clique em **“Instalar”**.  
