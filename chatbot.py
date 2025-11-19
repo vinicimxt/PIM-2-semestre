@@ -72,6 +72,7 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
+    
     conn.commit()
     conn.close()
 
@@ -84,8 +85,26 @@ def register():
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
-    
+
+    # Regex de validação da senha
+    password_regex = r"^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':\",.<>/?]).{8,}$"
+
+    # Verificando critérios
+    if len(password) < 8:
+        return jsonify({"status": "error", "message": "A senha deve ter pelo menos 8 caracteres."})
+
+    if not re.search(r"[A-Z]", password):
+        return jsonify({"status": "error", "message": "A senha deve conter pelo menos 1 letra maiúscula."})
+
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\",.<>/?]", password):
+        return jsonify({"status": "error", "message": "A senha deve conter pelo menos 1 caractere especial."})
+
+    # OU valida tudo com apenas uma regex:
+    # if not re.match(password_regex, password):
+    #     return jsonify({"status": "error", "message": "A senha deve ter 8 caracteres, 1 maiúscula e 1 caractere especial."})
+
     hashed = generate_password_hash(password)
+
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
