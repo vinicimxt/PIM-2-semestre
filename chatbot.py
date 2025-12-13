@@ -1,307 +1,203 @@
 import os
-from functools import wraps
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
-from dotenv import load_dotenv
 import sqlite3
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from dotenv import load_dotenv
 import fitz
-import re
-from tools.error_checker_runner import run_error_checker
 from setup import run_setup
+import google.generativeai as genai
 
+# ===============================
+# CONFIGURAÇÃO INICIAL
+# ===============================
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    run_setup()        # chama a interface de setup
-    load_dotenv()      # recarrega a variável do .env
+    run_setup()
+    load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    print("❌ Nenhuma chave GEMINI_API_KEY encontrada. Saindo...")
+    print("❌ Nenhuma chave GEMINI_API_KEY encontrada.")
     exit(1)
 
-import google.generativeai as genai
 genai.configure(api_key=api_key)
-print("✅ Chatbot iniciado com sucesso!")
 
 app = Flask(
     __name__,
     template_folder="web/templates",
-    static_folder="web/static",
+    static_folder="web/static"
 )
-app.secret_key = "supersecretkey"
+
 DB_FILE = "chat.db"
+
+# ===============================
+# MODELO / PROMPT
+# ===============================
 
 system_instruction = {
     "role": "user",
-    "parts": ["Você é um assistente de pesquisa e orientação acadêmica da Unip. Sua principal função é fornecer informações confiáveis e baseadas em evidências para estudantes, professores e pesquisadores. Mantenha um tom formal e profissional. Responda apenas sobre temas acadêmicos, evitando gírias, opiniões pessoais ou conversas informais. Se não puder responder de forma acadêmica, diga educadamente que não pode ajudar."
-    "Só responda com saudações ou agradecimentos se a mensagem do usuário realmente for uma saudação ou agradecimento. "
-    "Se não for, responda educadamente que não pode ajudar fora do contexto acadêmico."],
+    "parts": [
+        "Você é um assistente virtual corporativo de TI, atuando como suporte técnico de primeiro nível (Service Desk). "
+        "Ajude colaboradores com dúvidas sobre redes, usuários, impressoras, planilhas e sistemas internos. "
+        "Responda de forma clara, objetiva e profissional."
+    ]
 }
 
-model_response_ack = {
-    "role": "model",
-    "parts": ["Entendido. Como assistente acadêmico, estou pronto para ajudar com suas perguntas."],
-}
+model = genai.GenerativeModel(
+    model_name="gemini-2.5-flash-lite",
+    system_instruction=system_instruction["parts"][0]
+)
+
+chat = model.start_chat()
 
 
-model = genai.GenerativeModel("gemini-2.5-flash-lite")
-
-
-chat = model.start_chat(history=[system_instruction, model_response_ack])
+# ===============================
+# BANCO DE DADOS
+# ===============================
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
     c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS knowledge_base (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT
+            category TEXT,
+            title TEXT,
+            content TEXT
         )
     """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            message TEXT,
-            response TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    """)
-    
+
     conn.commit()
     conn.close()
 
 init_db()
 
+def search_by_title(message):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT content
+        FROM knowledge_base
+        WHERE LOWER(title) LIKE ?
+        LIMIT 1
+    """, (f"%{message.lower()}%",))
+
+    result = c.fetchone()
+    conn.close()
+
+    return result[0] if result else None
+
+def search_knowledge_base(message):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    keywords = message.lower().split()
+    conditions = " OR ".join(["content LIKE ?"] * len(keywords))
+    params = [f"%{k}%" for k in keywords]
+
+    query = f"""
+        SELECT content
+        FROM knowledge_base
+        WHERE {conditions}
+        LIMIT 3
+    """
+
+    c.execute(query, params)
+    results = c.fetchall()
+    conn.close()
+
+    return "\n\n".join([r[0] for r in results])
+
+def search_by_category(message):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT title
+        FROM knowledge_base
+        WHERE LOWER(category) LIKE ?
+    """, (f"%{message.lower()}%",))
+
+    results = c.fetchall()
+    conn.close()
+
+    return [r[0] for r in results]
 
 
-@app.route("/register", methods=["POST"])
-def register():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-
-    # Regex de validação da senha
-    password_regex = r"^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':\",.<>/?]).{8,}$"
-
-    # Verificando critérios
-    if len(password) < 8:
-        return jsonify({"status": "error", "message": "A senha deve ter pelo menos 8 caracteres."})
-
-    if not re.search(r"[A-Z]", password):
-        return jsonify({"status": "error", "message": "A senha deve conter pelo menos 1 letra maiúscula."})
-
-    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\",.<>/?]", password):
-        return jsonify({"status": "error", "message": "A senha deve conter pelo menos 1 caractere especial."})
-
-    # OU valida tudo com apenas uma regex:
-    # if not re.match(password_regex, password):
-    #     return jsonify({"status": "error", "message": "A senha deve ter 8 caracteres, 1 maiúscula e 1 caractere especial."})
-
-    hashed = generate_password_hash(password)
-
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "ok", "message": "Usuário registrado com sucesso!"})
-    except sqlite3.IntegrityError:
-        return jsonify({"status": "error", "message": "Usuário já existe!"})
-
-# Login
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("login_page"))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-@app.route("/login_page")
-def login_page():
-    return render_template("login.html")
+# ===============================
+# ROTAS
+# ===============================
 
 @app.route("/")
-@login_required
 def index():
     return render_template("index.html")
 
 
-@app.route("/login", methods=["POST"])
-def login():
-    
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT id, password FROM users WHERE username=?", (username,))
-    user = c.fetchone()
-    conn.close()
-
-    if user and check_password_hash(user[1], password):
-        session["user_id"] = user[0]
-        session["username"] = username 
-        return jsonify({"status": "ok", "message": "Login realizado!"})
-    return jsonify({"status": "error", "message": "Usuário ou senha incorretos."})
-
-
-@app.route("/logout")
-def logout():
-    session.pop("user_id", None)
-    return redirect(url_for("login_page"))
-
-
-
 @app.route("/send_message", methods=["POST"])
-@login_required
 def send_message():
-    try:
-        data = request.get_json()
-        user_message = data.get("message", "").strip()
-        username = session.get("username", "usuário")
-
-        # Detecta se o usuário enviou código C (heurística simples)
-        if re.search(r'#include|int\s+main\s*\(|printf\s*\(', user_message):
-            # Salva o código
-            temp_path = "temp_user_code.c"
-            with open(temp_path, "w", encoding="utf-8") as f:
-                f.write(user_message)
-
-            # Roda o verificador de erros em C
-            gcc_output = run_error_checker(temp_path)
-
-            # Monta a análise em Python
-            analysis = []
-            if "expected" in gcc_output:
-                analysis.append("🔹 Parece haver um erro de sintaxe, possivelmente falta um ponto e vírgula ou parêntese.")
-            if "return" not in user_message:
-                analysis.append("🔹 O código não possui uma instrução de retorno em `main()`. Considere adicionar `return 0;`.")
-            if "printf" not in user_message:
-                analysis.append("🔹 Não encontrei nenhum `printf`. Está certo disso? Talvez queira imprimir algo para depurar o programa.")
-            if "{" not in user_message or "}" not in user_message:
-                analysis.append("🔹 As chaves `{}` parecem desbalanceadas. Verifique se todas estão abrindo e fechando corretamente.")
-
-            python_feedback = "\n".join(analysis) if analysis else "✅ Nenhum problema estrutural detectado."
-
-            # Gera explicação do Gemini com base no resultado
-            prompt = f"""
-            Analise o seguinte código C e os erros detectados.
-
-            Código:
-            {user_message}
-
-            Saída do compilador:
-            {gcc_output}
-
-            Sugestões do analisador Python:
-            {python_feedback}
-
-            Dê um parecer técnico:
-            - Explique de forma clara o que o compilador quis dizer.
-            - Mostre o que corrigir.
-            - Dê boas práticas de C (organização, comentários, clareza).
-            """
-
-            local_chat = model.start_chat(history=[system_instruction, model_response_ack])
-            response = local_chat.send_message(prompt)
-
-            try:
-                response_text = response.candidates[0].content.parts[0].text
-            except Exception:
-                response_text = str(response)
-
-            response_text = response_text.replace("\n", "<br>")
-            
-        else:
-            # Conversa normal
-            local_chat = model.start_chat(history=[system_instruction, model_response_ack])
-            response = local_chat.send_message(user_message)
-
-            try:
-                response_text = response.candidates[0].content.parts[0].text
-            except Exception:
-                response_text = str(response)
-
-            response_text = response_text.replace("\n", "<br>")
-            user_id = session.get("user_id")
-            if user_id:
-                save_message(user_id, user_message, response_text)
-        return jsonify({"response": response_text})
-
-    except Exception as e:
-        print("Erro no send_message:", e)
-        return jsonify({"response": "⚠️ Ocorreu um erro ao processar sua mensagem."}), 500
-
-
-
-
-@app.route("/check_code_page", methods=["GET"])
-@login_required
-def check_code_page():
-    
-    return render_template("check_code.html")
-
-# Rota para processar a verificação (executa o C)
-@app.route("/check_code", methods=["POST"])
-
-@app.route("/check_code", methods=["POST"])
-def check_code():
     data = request.get_json()
-    file_name = data.get("file", "pim_code.c").strip()
+    user_message = data.get("message", "").strip()
 
-    
-    code_dir = os.path.join(os.getcwd(), "teste_C")
-    file_path = os.path.join(code_dir, file_name)
-
-    if not os.path.exists(file_path):
+    # 1️⃣ Busca direta por título (resposta exata)
+    direct_answer = search_by_title(user_message)
+    if direct_answer:
         return jsonify({
-            "response": f"❌ Arquivo '{file_name}' não encontrado na pasta 'c_codes/'."
+            "response": direct_answer.replace("\n", "<br>")
         })
 
-    result = run_error_checker(file_path)
-    return jsonify({"response": result})
+    # 2️⃣ Busca por categoria (listar assuntos)
+    category_hits = search_by_category(user_message)
+    if category_hits:
+        sugestoes = "\n".join([f"- {t}" for t in category_hits])
+        return jsonify({
+            "response": (
+                f"📂 Encontrei informações relacionadas a **{user_message}**:\n\n"
+                f"{sugestoes}\n\n"
+                "👉 Você pode perguntar sobre qualquer um desses tópicos."
+            ).replace("\n", "<br>")
+        })
+
+    # 3️⃣ Busca geral no conteúdo (apoio à IA)
+    kb_content = search_knowledge_base(user_message)
+    if not kb_content:
+        return jsonify({
+            "response": "❌ Não encontrei informações sobre esse assunto na base de conhecimento."
+        })
+
+    # 4️⃣ IA só organiza o que já existe
+    prompt = f"""
+    Use EXCLUSIVAMENTE as informações abaixo.
+    Não invente nada.
+
+    Base de conhecimento:
+    {kb_content}
+
+    Pergunta:
+    {user_message}
+
+    Responda de forma direta e técnica.
+    """
+
+    response = model.generate_content(prompt)
+
+    try:
+        text = response.candidates[0].content.parts[0].text
+    except Exception:
+        text = "Erro ao gerar resposta."
+
+    return jsonify({"response": text.replace("\n", "<br>")})
 
 
-def save_message(user_id, message, response):
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO messages (user_id, message, response) VALUES (?, ?, ?)
-    """, (user_id, message, response))
-    conn.commit()
-    conn.close()
 
+# ===============================
+# PDF (opcional)
+# ===============================
 
-@app.route("/history")
-def history():
-    if "user_id" not in session:
-        return jsonify([])
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        SELECT message, response, timestamp 
-        FROM messages 
-        WHERE user_id=? 
-        ORDER BY timestamp
-    """, (session["user_id"],))
-    msgs = c.fetchall()
-    conn.close()
-    return jsonify(msgs)
-
-
-
+PDF_FOLDER = "./assets/pdf/"
 
 def extract_text_from_pdf(file_path):
     text = ""
@@ -310,34 +206,32 @@ def extract_text_from_pdf(file_path):
             text += page.get_text()
     return text
 
-PDF_FOLDER = "./assets/pdf/"
-
 @app.route("/resumir_pdf", methods=["POST"])
-@login_required
 def resumir_pdf():
     data = request.get_json()
     pdf_name = data.get("pdf_name")
 
     file_path = os.path.join(PDF_FOLDER, pdf_name)
     if not os.path.exists(file_path):
-        return jsonify({"response": "⚠️ PDF não encontrado no servidor."})
+        return jsonify({"response": "PDF não encontrado."})
 
     pdf_text = extract_text_from_pdf(file_path)
 
-   
-    prompt = f"Resuma de forma clara e objetiva o seguinte conteúdo:\n\n{pdf_text}"
+    prompt = f"Resuma de forma clara e objetiva:\n\n{pdf_text}"
 
-    response = chat.send_message(prompt)
-    formatted = getattr(response, "text", str(response)).replace("\n", "<br>")
+    response = model.generate_content(prompt)
+    text = response.candidates[0].content.parts[0].text
 
-    return jsonify({"response": formatted})
+    return jsonify({"response": text.replace("\n", "<br>")})
 
 @app.route("/pdf/<path:filename>")
 def serve_pdf(filename):
     return send_from_directory(PDF_FOLDER, filename)
 
-# Flask
+# ===============================
+# MAIN
+# ===============================
+
 if __name__ == "__main__":
     print("Servidor rodando em http://127.0.0.1:5000")
     app.run(debug=True)
-    

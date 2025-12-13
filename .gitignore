@@ -1,2 +1,4 @@
 .env
 chat.db
+chat.db-journal
+chat.sqbpro
